@@ -42,7 +42,6 @@ class Player():
 			dy = 0
 		screen.blit(self.image, self.rect)
 
-
 class World():
 	def __init__(self, data):
 		self.tile_list = []
@@ -97,7 +96,6 @@ world_data = [
 
 player = Player(100, screen_height - 130)
 world: World = World(world_data)
-
 run = True
 while run:
 	screen.blit(bg_img, (0, 0))
