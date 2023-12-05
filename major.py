@@ -1,8 +1,7 @@
 import pygame
-
+import random
 from pygame import mixer
 from os import path
-
 import pickle
 import sqlite3
 
@@ -24,7 +23,7 @@ tile_size = 50
 game_over = 0
 main_menu = True
 level = 1
-max_levels = 7
+max_levels = 6
 score = 0
 pause = False
 
@@ -63,6 +62,11 @@ def reset_level(level):
     blob_group.empty()
     ice_group.empty()
     exit_group.empty()
+    global score_present
+    if 'score_present' in globals():
+        present_group.remove(score_present)
+    score_present = Present((tile_size // 2) + 110, (tile_size // 2) + 35)
+    present_group.add(score_present)
     if path.exists(f'level{level}_data'):
         pickle_in = open(f'level{level}_data', 'rb')
         world_data = pickle.load(pickle_in)
@@ -95,20 +99,64 @@ class Player():
     def __init__(self, x, y):
         self.lives = 3
         self.reset(x, y)
+        self.images_right = []
+        self.images_left = []
+        for num in range(1, 15):
+            img_right = pygame.image.load(f'img/Walk{num}.png')
+            img_right = pygame.transform.scale(img_right, (45, 60))
+            img_left = pygame.transform.flip(img_right, True, False)
+            self.images_right.append(img_right)
+            self.images_left.append(img_left)
+        self.death_images = []
+        for i in range(1, 18):
+            img = pygame.image.load(f'img/Dead{i}.png')
+            img = pygame.transform.scale(img, (50, 60))
+            self.death_images.append(img)
+        self.death_index = 0
+
+        self.dead_image = pygame.image.load('img/Dead12.png')
+        self.dead_image = pygame.transform.scale(self.dead_image, (50, 60))
+        self.image = self.images_right[0]
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+        self.vel_y = 0
+        self.jumped = False
+        self.direction = 0
+        self.in_air = True
+        self.invulnerable = False
+        self.invulnerable_timer = 0
+
+    def reset_position(self):
+        # Сброс позиции игрока
+        self.rect.x = 100  # начальная позиция по оси X
+        self.rect.y = screen_height - 130  # начальная позиция по оси Y
+        self.vel_y = 0
+        self.in_air = False
+
+    def make_invulnerable(self):
+        self.invulnerable = True
+        self.invulnerable_timer = pygame.time.get_ticks()
 
     def update(self, game_over):
         dx = 0
         dy = 0
         walk_cooldown = 5
         colusion = 20
-        if pygame.sprite.spritecollide(self, blob_group, False) or pygame.sprite.spritecollide(self, ice_group, False):
+        if self.invulnerable:
+            if pygame.time.get_ticks() - self.invulnerable_timer > 1000:
+                self.invulnerable = False
+        if not self.invulnerable and (
+                pygame.sprite.spritecollide(self, blob_group, False) or pygame.sprite.spritecollide(self, ice_group,
+                                                                                                    False)):
             self.lives -= 1
             if self.lives <= 0:
                 game_over = -1
             else:
-                self.rect.x = 100
-                self.rect.y = screen_height - 130
-            return game_over
+                self.reset_position()
+                self.make_invulnerable()
         if game_over == 0:
             key = pygame.key.get_pressed()
             if key[pygame.K_SPACE] and self.jumped == False and self.in_air == False:
@@ -163,6 +211,13 @@ class Player():
                 game_over = -1
             if pygame.sprite.spritecollide(self, exit_group, False):
                 game_over = 1
+            if pygame.sprite.spritecollide(self, blob_group, False) or pygame.sprite.spritecollide(self, ice_group,
+                                                                                                   False):
+                self.lives -= 1
+                if self.lives <= 0:
+                    game_over = -1
+                else:
+                    self.reset_position()
 
             for platform in platform_group:
                 if platform.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
@@ -179,9 +234,14 @@ class Player():
                         self.rect.x += platform.move_direction
             self.rect.x += dx
             self.rect.y += dy
+
+
         elif game_over == -1:
-            self.image = self.dead_image
-            draw_text('You lose', font, red, (screen_width // 2) - 100, (screen_height // 2) - 200)
+            self.image = self.death_images[self.death_index]
+            self.death_index += 1
+            if self.death_index >= len(self.death_images):
+                self.death_index = len(self.death_images) - 1
+
         screen.blit(self.image, self.rect)
         return game_over
 
@@ -203,10 +263,9 @@ class Player():
         self.reset(x, y)
 
     def reset(self, x, y):
+        self.heart_animations = []
         self.images_right = []
         self.images_left = []
-        self.index = 0
-        self.counter = 0
         self.frame_counter = 0
         self.heart_animations = []
         for i in range(1, 8):
@@ -220,9 +279,10 @@ class Player():
             img_left = pygame.transform.flip(img_right, True, False)
             self.images_right.append(img_right)
             self.images_left.append(img_left)
+
         self.dead_image = pygame.image.load('img/Dead12.png')
         self.dead_image = pygame.transform.scale(self.dead_image, (50, 60))
-        self.image = self.images_right[self.index]
+        self.image = self.images_right[0]
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
@@ -232,6 +292,7 @@ class Player():
         self.jumped = False
         self.direction = 0
         self.in_air = True
+        self.death_index = 0
 
 
 class World():
@@ -347,6 +408,27 @@ def draw_top_scores(current_score=None):
     if current_score is not None:
         draw_text(f'Your Score: {current_score}', font_score, white, screen_width // 2 - 50, y)
         y += 40
+
+
+class Snowflake():
+    def __init__(self, x, y, size, speed):
+        self.x = x
+        self.y = y
+        self.size = size
+        self.speed = speed
+
+    def update(self):
+        self.y += self.speed
+        if self.y > screen_height:
+            self.y = -50
+            self.x = random.randint(0, screen_width)
+
+    def draw(self):
+        pygame.draw.circle(screen, (255, 255, 255), (self.x, self.y), self.size)
+
+
+snowflakes = [Snowflake(random.randint(0, screen_width), random.randint(0, screen_height), random.randint(2, 5),
+                        random.randint(1, 4)) for _ in range(100)]
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -471,6 +553,14 @@ while run:
     screen.blit(bg_img, (0, 0))
 
     if main_menu:
+        for snowflake in snowflakes:
+            snowflake.update()
+        screen.blit(bg_img, (0, 0))
+        for snowflake in snowflakes:
+            snowflake.draw()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
         if not menu_music_playing:
             menu_sound.play(-1)
             menu_music_playing = True
@@ -480,7 +570,6 @@ while run:
             main_menu = False
             menu_sound.stop()
             menu_music_playing = False
-
     else:
         if not pause:
             world.draw()
