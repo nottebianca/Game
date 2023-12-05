@@ -1,10 +1,13 @@
 import pygame
-import random
-from pygame.locals import *
+
+from pygame import mixer
 from os import path
+
 import pickle
 
+pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
+mixer.init()
 clock = pygame.time.Clock()
 fps = 60
 screen_width = 1000
@@ -17,6 +20,8 @@ main_menu = True
 level = 1
 max_levels = 7
 score = 0
+pause = False
+
 font = pygame.font.SysFont(None, 70)
 font_score = pygame.font.SysFont(None, 36)
 red = (255, 0, 0)
@@ -24,6 +29,22 @@ white = (255, 255, 255)
 bg_img = pygame.image.load('img/bg.png')
 start_menu_img = pygame.image.load('img/start_menu.png')
 exit_menu_img = pygame.image.load('img/exit_menu.png')
+continue_img = pygame.image.load('img/continue.png')
+exit_img = pygame.image.load('img/exit.png')
+
+present_sound = pygame.mixer.Sound('sound/present.mp3')
+present_sound.set_volume(0.5)
+jump_sound = pygame.mixer.Sound('sound/jump.mp3')
+jump_sound.set_volume(0.5)
+menu_sound = pygame.mixer.Sound('sound/HappyNewYear.mp3')
+menu_sound.set_volume(0.1)
+game_over_sound = pygame.mixer.Sound('sound/game_over.wav')
+game_over_sound.set_volume(0.3)
+level_sound = pygame.mixer.Sound('sound/level_up.mp3')
+level_sound.set_volume(0.1)
+
+menu_music_playing = False
+game_over_music_played = False
 
 
 def draw_text(text, font, text_color, x, y):
@@ -66,6 +87,7 @@ class Button():
 
 class Player():
     def __init__(self, x, y):
+        self.lives = 3
         self.reset(x, y)
 
     def update(self, game_over):
@@ -83,6 +105,7 @@ class Player():
         if game_over == 0:
             key = pygame.key.get_pressed()
             if key[pygame.K_SPACE] and self.jumped == False and self.in_air == False:
+                jump_sound.play()
                 self.vel_y = -15
                 self.jumped = True
             if key[pygame.K_SPACE] == False:
@@ -145,20 +168,24 @@ class Player():
         font = pygame.font.SysFont(None, 36)
         text = font.render('Lives:', True, (255, 255, 255))
         screen.blit(text, (10, 10))
-        for i in range(self.lives):
-            screen.blit(self.heart_animations[self.heart_frame], (80 + i * 35, 10))
+        if self.lives is not None:
+            for i in range(self.lives):
+                screen.blit(self.heart_animations[self.heart_frame], (80 + i * 35, 10))
         if self.frame_counter % 5 == 0:
             self.heart_frame += 1
             if self.heart_frame >= len(self.heart_animations):
                 self.heart_frame = 0
         self.frame_counter += 1
 
+    def full_reset(self, x, y):
+        self.lives = 3
+        self.reset(x, y)
+
     def reset(self, x, y):
         self.images_right = []
         self.images_left = []
         self.index = 0
         self.counter = 0
-        self.lives = 3
         self.frame_counter = 0
         self.heart_animations = []
         for i in range(1, 8):
@@ -266,7 +293,6 @@ class World():
             screen.blit(tile[0], tile[1])
 
 
-
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
@@ -336,12 +362,14 @@ start_menu_button = Button(screen_width // 2 - start_menu_img_scaled.get_width()
 exit_menu_button = Button(screen_width // 2 - exit_menu_img_scaled.get_width() // 2, exit_menu_button_y,
                           exit_menu_img_scaled)
 
+
+
 player = Player(100, screen_height - 130)
 blob_group = pygame.sprite.Group()
 ice_group = pygame.sprite.Group()
 exit_group = pygame.sprite.Group()
 present_group = pygame.sprite.Group()
-score_present = Present((tile_size // 2) + 100, (tile_size // 2) + 35)
+score_present = Present((tile_size // 2) + 110, (tile_size // 2) + 35)
 present_group.add(score_present)
 if path.exists(f'level{level}_data'):
     pickle_in = open(f'level{level}_data', 'rb')
@@ -353,24 +381,37 @@ while run:
     clock.tick(fps)
     screen.blit(bg_img, (0, 0))
     if main_menu == True:
+        if not menu_music_playing:
+            menu_sound.play(-1)
+            menu_music_playing = True
         if exit_menu_button.draw() == True:
             run = False
         if start_menu_button.draw() == True:
             main_menu = False
+            menu_sound.stop()
+            menu_music_playing = False
     else:
         world.draw()
+
         if game_over == 0:
+            present_group.draw(screen)
             blob_group.update()
             if pygame.sprite.spritecollide(player, present_group, True):
                 score += 1
+                present_sound.play()
             draw_text('Score: ' + str(score), font_score, white, tile_size - 40, 50)
         blob_group.draw(screen)
         ice_group.draw(screen)
-        present_group.draw(screen)
         exit_group.draw(screen)
         game_over = player.update(game_over)
         if game_over == -1:
+            if not game_over_music_played:
+                game_over_sound.play()
+                game_over_music_played = True
+            draw_text('GAME OVER', font, red, (screen_width // 2) - 150, (screen_height // 2) - 200)
             if restart_button.draw():
+                game_over_music_played = False
+                player.full_reset(100, screen_height - 130)
                 world_data = []
                 world = reset_level(level)
                 game_over = 0
@@ -381,15 +422,17 @@ while run:
                 score = 0
         player.draw_lives(screen)
         if game_over == 1:
+            level_sound.play()
             level += 1
             if level <= max_levels:
                 world_data = []
                 world = reset_level(level)
                 game_over = 0
             else:
-                draw_text('YOU WIN!!!', font, red, (screen_width // 2) - 100, (screen_height // 2) - 200)
+                draw_text('YOU WIN!!!', font, red, (screen_width // 2) - 140, (screen_height // 2) - 200)
                 if restart_button.draw():
                     level = 1
+                    player.full_reset(100, screen_height - 130)
                     world_data = []
                     world = reset_level(level)
                     game_over = 0
