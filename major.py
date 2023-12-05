@@ -11,26 +11,27 @@ pygame.display.set_caption('Platformer')
 tile_size = 50
 game_over = 0
 bg_img = pygame.image.load('img/bg.png')
-restart_img = pygame.image.load('img/restart.png')
 
 
-class Buton():
+class Button():
     def __init__(self, x, y, image):
         self.image = image
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
+        self.clicked = False
 
     def draw(self):
         action = False
         position = pygame.mouse.get_pos()
         if self.rect.collidepoint(position):
-            if pygame.mouse.get_pressed()[0] == 1 and self.clicked == False:
+            if pygame.mouse.get_pressed()[0] == 1 and not self.clicked:
                 action = True
                 self.clicked = True
         if pygame.mouse.get_pressed()[0] == 0:
             self.clicked = False
         screen.blit(self.image, self.rect)
+        return action
 
 
 class Player():
@@ -50,7 +51,6 @@ class Player():
                 self.rect.y = screen_height - 130
             return game_over
         if game_over == 0:
-            # get keypresses
             key = pygame.key.get_pressed()
             if key[pygame.K_SPACE] and self.jumped == False:
                 self.vel_y = -15
@@ -107,7 +107,6 @@ class Player():
         elif game_over == -1:
             self.image = self.dead_image
         screen.blit(self.image, self.rect)
-        pygame.draw.rect(screen, (255, 255, 255), self.rect, 2)
         return game_over
 
     def draw_lives(self, screen):
@@ -156,60 +155,64 @@ class Player():
 
 class World():
     def __init__(self, data):
+        self.data = data
+        self.land_img = pygame.image.load('img/land.png')
+        self.snowland_img = pygame.image.load('img/snowland.png')
+        self.lf_snowland_img = pygame.image.load('img/leftsnow.png')
+        self.rg_snowland_img = pygame.image.load('img/rightsnow.png')
+        self.lf_obrez_img = pygame.image.load('img/left_obrez.png')
+        self.rg_obrez_img = pygame.image.load('img/right_obrez.png')
+        self.create_world()
+
+    def create_world(self):
         self.tile_list = []
-        land_img = pygame.image.load('img/land.png')
-        snowland_img = pygame.image.load('img/snowland.png')
-        lf_snowland_img = pygame.image.load('img/leftsnow.png')
-        rg_snowland_img = pygame.image.load('img/rightsnow.png')
-        lf_obrez_img = pygame.image.load('img/left_obrez.png')
-        rg_obrez_img = pygame.image.load('img/right_obrez.png')
         row_count = 0
-        for row in data:
+        for row in self.data:
             col_count = 0
             for tile in row:
                 if tile == 1:
-                    img = pygame.transform.scale(land_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.land_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
                     img_rect.y = row_count * tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
-                if tile == 2:
-                    img = pygame.transform.scale(snowland_img, (tile_size, tile_size))
+                elif tile == 2:
+                    img = pygame.transform.scale(self.snowland_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
                     img_rect.y = row_count * tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
-                if tile == 3:
+                elif tile == 3:
                     blob = Enemy(col_count * tile_size, row_count * tile_size + 15)
                     blob_group.add(blob)
-                if tile == 6:
+                elif tile == 6:
                     ice = Ice(col_count * tile_size, row_count * tile_size + (tile_size // 2))
                     ice_group.add(ice)
-                if tile == 8:
-                    img = pygame.transform.scale(lf_snowland_img, (tile_size, tile_size))
+                elif tile == 8:
+                    img = pygame.transform.scale(self.lf_snowland_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
                     img_rect.y = row_count * tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
-                if tile == 9:
-                    img = pygame.transform.scale(rg_snowland_img, (tile_size, tile_size))
+                elif tile == 9:
+                    img = pygame.transform.scale(self.rg_snowland_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
                     img_rect.y = row_count * tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
-                if tile == 10:
-                    img = pygame.transform.scale(lf_obrez_img, (tile_size, tile_size))
+                elif tile == 10:
+                    img = pygame.transform.scale(self.lf_obrez_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
                     img_rect.y = row_count * tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
-                if tile == 11:
-                    img = pygame.transform.scale(rg_obrez_img, (tile_size, tile_size))
+                elif tile == 11:
+                    img = pygame.transform.scale(self.rg_obrez_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
                     img_rect.y = row_count * tile_size
@@ -221,7 +224,7 @@ class World():
     def draw(self):
         for tile in self.tile_list:
             screen.blit(tile[0], tile[1])
-            pygame.draw.rect(screen, (255, 255, 255), tile[1], 2)
+
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -253,6 +256,14 @@ class Ice(pygame.sprite.Sprite):
         self.rect.y = y
 
 
+y_offset = 50
+button_size = (200, 200)
+restart_img = pygame.image.load('img/restart.png')
+restart_img = pygame.transform.scale(restart_img, button_size)
+button_x = screen_width // 2 - button_size[0] // 2
+button_y = screen_height // 2 - button_size[1] // 2 - y_offset
+restart_button = Button(button_x, button_y, restart_img)
+
 world_data = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -280,7 +291,6 @@ player = Player(100, screen_height - 130)
 blob_group = pygame.sprite.Group()
 ice_group = pygame.sprite.Group()
 world = World(world_data)
-restart_button = Buton(screen_width // 2 - 50, screen_height // 2 + 100, restart_img)
 
 run = True
 while run:
@@ -293,7 +303,12 @@ while run:
     ice_group.draw(screen)
     game_over = player.update(game_over)
     if game_over == -1:
-        restart_button.draw()
+        if restart_button.draw():
+            player.reset(100, screen_height - 130)
+            blob_group = pygame.sprite.Group()
+            ice_group = pygame.sprite.Group()
+            world.create_world()
+            game_over = 0
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
