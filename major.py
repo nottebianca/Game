@@ -1,6 +1,8 @@
 import pygame
 import random
 from pygame.locals import *
+from os import path
+import pickle
 
 pygame.init()
 clock = pygame.time.Clock()
@@ -12,9 +14,33 @@ pygame.display.set_caption('Platformer')
 tile_size = 50
 game_over = 0
 main_menu = True
+level = 1
+max_levels = 7
+score = 0
+font = pygame.font.SysFont(None, 70)
+font_score = pygame.font.SysFont(None, 36)
+red = (255, 0, 0)
+white = (255, 255, 255)
 bg_img = pygame.image.load('img/bg.png')
 start_menu_img = pygame.image.load('img/start_menu.png')
 exit_menu_img = pygame.image.load('img/exit_menu.png')
+
+
+def draw_text(text, font, text_color, x, y):
+    img = font.render(text, True, text_color)
+    screen.blit(img, (x, y))
+
+
+def reset_level(level):
+    player.reset(100, screen_height - 130)
+    blob_group.empty()
+    ice_group.empty()
+    exit_group.empty()
+    if path.exists(f'level{level}_data'):
+        pickle_in = open(f'level{level}_data', 'rb')
+        world_data = pickle.load(pickle_in)
+    world = World(world_data)
+    return world
 
 
 class Button():
@@ -55,7 +81,6 @@ class Player():
                 self.rect.y = screen_height - 130
             return game_over
         if game_over == 0:
-            # get keypresses
             key = pygame.key.get_pressed()
             if key[pygame.K_SPACE] and self.jumped == False and self.in_air == False:
                 self.vel_y = -15
@@ -106,10 +131,13 @@ class Player():
                 game_over = -1
             if pygame.sprite.spritecollide(self, ice_group, False):
                 game_over = -1
+            if pygame.sprite.spritecollide(self, exit_group, False):
+                game_over = 1
             self.rect.x += dx
             self.rect.y += dy
         elif game_over == -1:
             self.image = self.dead_image
+            draw_text('You lose', font, red, (screen_width // 2) - 100, (screen_height // 2) - 200)
         screen.blit(self.image, self.rect)
         return game_over
 
@@ -195,7 +223,11 @@ class World():
                 elif tile == 6:
                     ice = Ice(col_count * tile_size, row_count * tile_size + (tile_size // 2))
                     ice_group.add(ice)
-                elif tile == 8:
+                elif tile == 7:
+                    present = Present(col_count * tile_size + (tile_size // 2),
+                                      row_count * tile_size + (tile_size // 2))
+                    present_group.add(present)
+                elif tile == 12:
                     img = pygame.transform.scale(self.lf_snowland_img, (tile_size, tile_size))
                     img_rect = img.get_rect()
                     img_rect.x = col_count * tile_size
@@ -223,6 +255,9 @@ class World():
                     img_rect.y = row_count * tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
+                elif tile == 8:
+                    exit = Win(col_count * tile_size, row_count * tile_size)
+                    exit_group.add(exit)
                 col_count += 1
             row_count += 1
 
@@ -251,6 +286,16 @@ class Enemy(pygame.sprite.Sprite):
             self.move_counter *= -1
 
 
+class Win(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load('img/portal.png')
+        self.image = pygame.transform.scale(img, (tile_size, int(tile_size * 1.5)))
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+
 class Ice(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
@@ -259,6 +304,15 @@ class Ice(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
+
+
+class Present(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load('img/present.png')
+        self.image = pygame.transform.scale(img, (tile_size // 2, tile_size // 2))
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
 
 
 y_offset = 50
@@ -282,32 +336,16 @@ start_menu_button = Button(screen_width // 2 - start_menu_img_scaled.get_width()
 exit_menu_button = Button(screen_width // 2 - exit_menu_img_scaled.get_width() // 2, exit_menu_button_y,
                           exit_menu_img_scaled)
 
-world_data = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 8, 2, 2, 1],
-    [1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 8, 9, 0, 7, 0, 5, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 8, 9, 0, 0, 0, 0, 0, 1],
-    [1, 7, 0, 0, 8, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 7, 0, 0, 0, 0, 1],
-    [1, 0, 2, 0, 0, 7, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 2, 0, 0, 4, 0, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 8, 2, 2, 2, 2, 2, 2, 2, 2, 9, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 10, 1, 1, 1, 1, 1, 1, 1, 1, 11, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 7, 0, 0, 0, 0, 0, 2, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 2, 2, 2, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 8, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 8, 8, 2, 2, 6, 6, 6, 6, 6, 10, 1, 1, 1, 1, 1],
-    [1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-]
-
 player = Player(100, screen_height - 130)
 blob_group = pygame.sprite.Group()
 ice_group = pygame.sprite.Group()
+exit_group = pygame.sprite.Group()
+present_group = pygame.sprite.Group()
+score_present = Present((tile_size // 2) + 100, (tile_size // 2) + 35)
+present_group.add(score_present)
+if path.exists(f'level{level}_data'):
+    pickle_in = open(f'level{level}_data', 'rb')
+world_data = pickle.load(pickle_in)
 world = World(world_data)
 
 run = True
@@ -323,17 +361,40 @@ while run:
         world.draw()
         if game_over == 0:
             blob_group.update()
+            if pygame.sprite.spritecollide(player, present_group, True):
+                score += 1
+            draw_text('Score: ' + str(score), font_score, white, tile_size - 40, 50)
         blob_group.draw(screen)
         ice_group.draw(screen)
+        present_group.draw(screen)
+        exit_group.draw(screen)
         game_over = player.update(game_over)
         if game_over == -1:
             if restart_button.draw():
-                player.reset(100, screen_height - 130)
+                world_data = []
+                world = reset_level(level)
+                game_over = 0
                 blob_group = pygame.sprite.Group()
                 ice_group = pygame.sprite.Group()
                 world.create_world()
                 game_over = 0
+                score = 0
         player.draw_lives(screen)
+        if game_over == 1:
+            level += 1
+            if level <= max_levels:
+                world_data = []
+                world = reset_level(level)
+                game_over = 0
+            else:
+                draw_text('YOU WIN!!!', font, red, (screen_width // 2) - 100, (screen_height // 2) - 200)
+                if restart_button.draw():
+                    level = 1
+                    world_data = []
+                    world = reset_level(level)
+                    game_over = 0
+                    score = 0
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
