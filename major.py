@@ -1,5 +1,6 @@
 import pygame
-
+import random
+from pygame.locals import *
 
 pygame.init()
 clock = pygame.time.Clock()
@@ -10,7 +11,10 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption('Platformer')
 tile_size = 50
 game_over = 0
+main_menu = True
 bg_img = pygame.image.load('img/bg.png')
+start_menu_img = pygame.image.load('img/start_menu.png')
+exit_menu_img = pygame.image.load('img/exit_menu.png')
 
 
 class Button():
@@ -51,8 +55,9 @@ class Player():
                 self.rect.y = screen_height - 130
             return game_over
         if game_over == 0:
+            # get keypresses
             key = pygame.key.get_pressed()
-            if key[pygame.K_SPACE] and self.jumped == False:
+            if key[pygame.K_SPACE] and self.jumped == False and self.in_air == False:
                 self.vel_y = -15
                 self.jumped = True
             if key[pygame.K_SPACE] == False:
@@ -85,19 +90,18 @@ class Player():
             if self.vel_y > 10:
                 self.vel_y = 10
             dy += self.vel_y
+            self.in_air = True
             for tile in world.tile_list:
                 if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                     dx = 0
-                # check for collision in y direction
                 if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
-                    # check if below the ground i.e. jumping
                     if self.vel_y < 0:
                         dy = tile[1].bottom - self.rect.top
                         self.vel_y = 0
-                    # check if above the ground i.e. falling
                     elif self.vel_y >= 0:
                         dy = tile[1].top - self.rect.bottom
                         self.vel_y = 0
+                        self.in_air = False
             if pygame.sprite.spritecollide(self, blob_group, False):
                 game_over = -1
             if pygame.sprite.spritecollide(self, ice_group, False):
@@ -136,7 +140,7 @@ class Player():
         self.heart_frame = 0
         for num in range(1, 5):
             img_right = pygame.image.load(f'img/Walk{num}.png')
-            img_right = pygame.transform.scale(img_right, (50, 60))
+            img_right = pygame.transform.scale(img_right, (45, 60))
             img_left = pygame.transform.flip(img_right, True, False)
             self.images_right.append(img_right)
             self.images_left.append(img_left)
@@ -151,6 +155,7 @@ class Player():
         self.vel_y = 0
         self.jumped = False
         self.direction = 0
+        self.in_air = True
 
 
 class World():
@@ -264,6 +269,19 @@ button_x = screen_width // 2 - button_size[0] // 2
 button_y = screen_height // 2 - button_size[1] // 2 - y_offset
 restart_button = Button(button_x, button_y, restart_img)
 
+start_menu_img_scaled = pygame.transform.scale(start_menu_img,
+                                               (start_menu_img.get_width() // 2, start_menu_img.get_height() // 2))
+exit_menu_img_scaled = pygame.transform.scale(exit_menu_img,
+                                              (exit_menu_img.get_width() // 2, exit_menu_img.get_height() // 2))
+
+start_menu_button_y = screen_height // 2 - 200
+exit_menu_button_y = screen_height // 2 + 50
+
+start_menu_button = Button(screen_width // 2 - start_menu_img_scaled.get_width() // 2, start_menu_button_y,
+                           start_menu_img_scaled)
+exit_menu_button = Button(screen_width // 2 - exit_menu_img_scaled.get_width() // 2, exit_menu_button_y,
+                          exit_menu_img_scaled)
+
 world_data = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -296,23 +314,28 @@ run = True
 while run:
     clock.tick(fps)
     screen.blit(bg_img, (0, 0))
-    world.draw()
-    if game_over == 0:
-        blob_group.update()
-    blob_group.draw(screen)
-    ice_group.draw(screen)
-    game_over = player.update(game_over)
-    if game_over == -1:
-        if restart_button.draw():
-            player.reset(100, screen_height - 130)
-            blob_group = pygame.sprite.Group()
-            ice_group = pygame.sprite.Group()
-            world.create_world()
-            game_over = 0
-
+    if main_menu == True:
+        if exit_menu_button.draw() == True:
+            run = False
+        if start_menu_button.draw() == True:
+            main_menu = False
+    else:
+        world.draw()
+        if game_over == 0:
+            blob_group.update()
+        blob_group.draw(screen)
+        ice_group.draw(screen)
+        game_over = player.update(game_over)
+        if game_over == -1:
+            if restart_button.draw():
+                player.reset(100, screen_height - 130)
+                blob_group = pygame.sprite.Group()
+                ice_group = pygame.sprite.Group()
+                world.create_world()
+                game_over = 0
+        player.draw_lives(screen)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
-    player.draw_lives(screen)
     pygame.display.update()
 pygame.quit()
