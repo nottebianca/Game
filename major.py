@@ -1,11 +1,15 @@
 import pygame
-import random
 
-from pygame.locals import *
 from pygame import mixer
 from os import path
 
 import pickle
+import sqlite3
+
+conn = sqlite3.connect('scores.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS scores (score INTEGER)''')
+conn.commit()
 
 pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
@@ -54,6 +58,8 @@ def draw_text(text, font, text_color, x, y):
 
 def reset_level(level):
     player.reset(100, screen_height - 130)
+    platform_group.empty()
+    present_group.empty()
     blob_group.empty()
     ice_group.empty()
     exit_group.empty()
@@ -94,6 +100,7 @@ class Player():
         dx = 0
         dy = 0
         walk_cooldown = 5
+        colusion = 20
         if pygame.sprite.spritecollide(self, blob_group, False) or pygame.sprite.spritecollide(self, ice_group, False):
             self.lives -= 1
             if self.lives <= 0:
@@ -103,7 +110,6 @@ class Player():
                 self.rect.y = screen_height - 130
             return game_over
         if game_over == 0:
-            # get keypresses
             key = pygame.key.get_pressed()
             if key[pygame.K_SPACE] and self.jumped == False and self.in_air == False:
                 jump_sound.play()
@@ -143,12 +149,10 @@ class Player():
             for tile in world.tile_list:
                 if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                     dx = 0
-                # check for collision in y direction
                 if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
                     if self.vel_y < 0:
                         dy = tile[1].bottom - self.rect.top
                         self.vel_y = 0
-                    # check if above the ground i.e. falling
                     elif self.vel_y >= 0:
                         dy = tile[1].top - self.rect.bottom
                         self.vel_y = 0
@@ -159,6 +163,20 @@ class Player():
                 game_over = -1
             if pygame.sprite.spritecollide(self, exit_group, False):
                 game_over = 1
+
+            for platform in platform_group:
+                if platform.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
+                    dx = 0
+                if platform.rect.colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                    if abs((self.rect.top + dy) - platform.rect.bottom) < colusion:
+                        self.vel_y = 0
+                        dy = platform.rect.bottom - self.rect.top
+                    elif abs((self.rect.bottom + dy) - platform.rect.top) < colusion:
+                        self.rect.bottom = platform.rect.top - 1
+                        self.in_air = False
+                        dy = 0
+                    if platform.move_x != 0:
+                        self.rect.x += platform.move_direction
             self.rect.x += dx
             self.rect.y += dy
         elif game_over == -1:
@@ -171,7 +189,7 @@ class Player():
         font = pygame.font.SysFont(None, 36)
         text = font.render('Lives:', True, (255, 255, 255))
         screen.blit(text, (10, 10))
-        if self.lives is not None:  # Check for None or invalid value
+        if self.lives is not None:
             for i in range(self.lives):
                 screen.blit(self.heart_animations[self.heart_frame], (80 + i * 35, 10))
         if self.frame_counter % 5 == 0:
@@ -181,7 +199,7 @@ class Player():
         self.frame_counter += 1
 
     def full_reset(self, x, y):
-        self.lives = 3  # Reset lives on full reset
+        self.lives = 3
         self.reset(x, y)
 
     def reset(self, x, y):
@@ -196,7 +214,7 @@ class Player():
             heart_img = pygame.transform.scale(heart_img, (30, 30))
             self.heart_animations.append(heart_img)
         self.heart_frame = 0
-        for num in range(1, 5):
+        for num in range(1, 15):
             img_right = pygame.image.load(f'img/Walk{num}.png')
             img_right = pygame.transform.scale(img_right, (45, 60))
             img_left = pygame.transform.flip(img_right, True, False)
@@ -250,6 +268,12 @@ class World():
                 elif tile == 3:
                     blob = Enemy(col_count * tile_size, row_count * tile_size + 15)
                     blob_group.add(blob)
+                elif tile == 4:
+                    platform = Platform(col_count * tile_size, row_count * tile_size, 1, 0)
+                    platform_group.add(platform)
+                elif tile == 5:
+                    platform = Platform(col_count * tile_size, row_count * tile_size, 0, 1)
+                    platform_group.add(platform)
                 elif tile == 6:
                     ice = Ice(col_count * tile_size, row_count * tile_size + (tile_size // 2))
                     ice_group.add(ice)
@@ -295,6 +319,36 @@ class World():
         for tile in self.tile_list:
             screen.blit(tile[0], tile[1])
 
+
+def save_score(score):
+    conn = sqlite3.connect('scores.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO scores (score) VALUES (?)", (score,))
+    conn.commit()
+    conn.close()
+
+
+def get_top_scores(limit=5):
+    conn = sqlite3.connect('scores.db')
+    c = conn.cursor()
+    c.execute("SELECT score FROM scores ORDER BY score DESC LIMIT ?", (limit,))
+    top_scores = c.fetchall()
+    conn.close()
+    return top_scores
+
+
+def draw_top_scores(current_score=None):
+    top_scores = get_top_scores(3)
+    y = 100
+    for index, score in enumerate(top_scores):
+        title = f'High Score {index + 1}'
+        draw_text(f'{title}: {score[0]}', font_score, white, screen_width // 2 - 50, y)
+        y += 40
+    if current_score is not None:
+        draw_text(f'Your Score: {current_score}', font_score, white, screen_width // 2 - 50, y)
+        y += 40
+
+
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
@@ -308,6 +362,28 @@ class Enemy(pygame.sprite.Sprite):
 
     def update(self):
         self.rect.x += self.move_direction
+        self.move_counter += 1
+        if abs(self.move_counter) > 50:
+            self.move_direction *= -1
+            self.move_counter *= -1
+
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, move_x, move_y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load('img/platform.png')
+        self.image = pygame.transform.scale(self.image, (tile_size, tile_size // 2))
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.move_counter = 0
+        self.move_direction = 1
+        self.move_x = move_x
+        self.move_y = move_y
+
+    def update(self):
+        self.rect.x += self.move_direction * self.move_x
+        self.rect.y += self.move_direction * self.move_y
         self.move_counter += 1
         if abs(self.move_counter) > 50:
             self.move_direction *= -1
@@ -365,20 +441,23 @@ exit_menu_button = Button(screen_width // 2 - exit_menu_img_scaled.get_width() /
                           exit_menu_img_scaled)
 
 pause_img = pygame.image.load('img/pause.png')
-pause_img_small = pygame.transform.scale(pause_img, (100, 100))  # Меньший размер для кнопки в игре
+pause_img_small = pygame.transform.scale(pause_img, (100, 100))
 continue_img = pygame.image.load('img/pause.png')
 exit_img = pygame.image.load('img/escape.png')
 
-
-pause_button = Button(880, 0, pause_img_small)  # Расположение кнопки паузы в игре
+pause_button = Button(880, 0, pause_img_small)
 continue_button = Button(screen_width // 2 - 150, screen_height // 2 - 450, continue_img)
 exit_button = Button(screen_width // 2 - 180, screen_height // 2 + 100, exit_img)
+
+exit_game_over_img = pygame.transform.scale(exit_img, (250, 250))
+exit_game_over_button = Button(screen_width // 2 - 130, screen_height // 2 + 120, exit_game_over_img)
 
 player = Player(100, screen_height - 130)
 blob_group = pygame.sprite.Group()
 ice_group = pygame.sprite.Group()
 exit_group = pygame.sprite.Group()
 present_group = pygame.sprite.Group()
+platform_group = pygame.sprite.Group()
 score_present = Present((tile_size // 2) + 110, (tile_size // 2) + 35)
 present_group.add(score_present)
 if path.exists(f'level{level}_data'):
@@ -390,6 +469,7 @@ run = True
 while run:
     clock.tick(fps)
     screen.blit(bg_img, (0, 0))
+
     if main_menu:
         if not menu_music_playing:
             menu_sound.play(-1)
@@ -400,32 +480,42 @@ while run:
             main_menu = False
             menu_sound.stop()
             menu_music_playing = False
+
     else:
         if not pause:
             world.draw()
             if game_over == 0:
                 present_group.draw(screen)
                 blob_group.update()
+                platform_group.update()
                 if pygame.sprite.spritecollide(player, present_group, True):
                     score += 1
                     present_sound.play()
                 draw_text('Score: ' + str(score), font_score, white, tile_size - 40, 50)
+            platform_group.draw(screen)
             blob_group.draw(screen)
             ice_group.draw(screen)
             exit_group.draw(screen)
             game_over = player.update(game_over)
             if game_over == -1:
+                draw_top_scores(current_score=score)
                 if not game_over_music_played:
                     game_over_sound.play()
                     game_over_music_played = True
                 draw_text('GAME OVER', font, red, (screen_width // 2) - 150, (screen_height // 2) - 200)
                 if restart_button.draw():
+                    save_score(score)
                     game_over_music_played = False
                     player.full_reset(100, screen_height - 130)
+                    level = 1
                     world_data = []
                     world = reset_level(level)
                     game_over = 0
                     score = 0
+                    pause = False
+                if exit_game_over_button.draw():
+                    save_score(score)
+                    run = False
             player.draw_lives(screen)
             if game_over == 1:
                 level_sound.play()
@@ -437,14 +527,18 @@ while run:
                 else:
                     draw_text('YOU WIN!!!', font, red, (screen_width // 2) - 140, (screen_height // 2) - 200)
                     if restart_button.draw():
-                        level = 1
+                        save_score(score)
+                        game_over_music_played = False
                         player.full_reset(100, screen_height - 130)
+                        level = 1
                         world_data = []
                         world = reset_level(level)
                         game_over = 0
                         score = 0
-            if pause_button.draw():
-                pause = True
+                        pause = False
+            if not game_over and not main_menu:
+                if pause_button.draw():
+                    pause = True
         else:
             if continue_button.draw():
                 pause = False
