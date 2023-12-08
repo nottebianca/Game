@@ -5,73 +5,6 @@ from os import path
 import pickle
 import sqlite3
 
-conn = sqlite3.connect('scores.db')
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS scores (score INTEGER)''')
-conn.commit()
-
-pygame.mixer.pre_init(44100, -16, 2, 512)
-pygame.init()
-mixer.init()
-clock = pygame.time.Clock()
-fps = 60
-screen_width = 1000
-screen_height = 1000
-screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.set_caption('Platformer')
-tile_size = 50
-game_over = 0
-main_menu = True
-level = 1
-max_levels = 6
-score = 0
-pause = False
-
-font = pygame.font.SysFont(None, 70)
-font_score = pygame.font.SysFont(None, 36)
-red = (255, 0, 0)
-white = (255, 255, 255)
-bg_img = pygame.image.load('img/bg.png')
-start_menu_img = pygame.image.load('img/start_menu.png')
-exit_menu_img = pygame.image.load('img/exit_menu.png')
-
-present_sound = pygame.mixer.Sound('sound/present.mp3')
-present_sound.set_volume(0.5)
-jump_sound = pygame.mixer.Sound('sound/jump.mp3')
-jump_sound.set_volume(0.5)
-menu_sound = pygame.mixer.Sound('sound/HappyNewYear.mp3')
-menu_sound.set_volume(0.1)
-game_over_sound = pygame.mixer.Sound('sound/game_over.wav')
-game_over_sound.set_volume(0.3)
-level_sound = pygame.mixer.Sound('sound/level_up.mp3')
-level_sound.set_volume(0.1)
-
-menu_music_playing = False
-game_over_music_played = False
-
-def draw_text(text, font, text_color, x, y):
-    img = font.render(text, True, text_color)
-    screen.blit(img, (x, y))
-
-def reset_level(level):
-    player.reset(100, screen_height - 130)
-    platform_group.empty()
-    present_group.empty()
-    blob_group.empty()
-    ice_group.empty()
-    exit_group.empty()
-    global score_present
-    if 'score_present' in globals():
-        present_group.remove(score_present)
-    score_present = Present((tile_size // 2) + 110, (tile_size // 2) + 35)
-    present_group.add(score_present)
-    if path.exists(f'level{level}'):
-        pickle_in = open(f'level{level}', 'rb')
-        world_data = pickle.load(pickle_in)
-    world = World(world_data)
-    return world
-
-
 class Button():
     def __init__(self, x, y, image):
         self.image = image
@@ -89,9 +22,8 @@ class Button():
                 self.clicked = True
         if pygame.mouse.get_pressed()[0] == 0:
             self.clicked = False
-        screen.blit(self.image, self.rect)
+        old_global.screen.blit(self.image, self.rect)
         return action
-
 
 class Player():
     def __init__(self, x, y):
@@ -130,7 +62,7 @@ class Player():
 
     def reset_position(self):
         self.rect.x = 100
-        self.rect.y = screen_height - 130
+        self.rect.y = old_global.screen_height - 130
         self.vel_y = 0
         self.in_air = False
 
@@ -148,7 +80,7 @@ class Player():
                 self.invulnerable = False
 
         if not self.invulnerable:
-            if pygame.sprite.spritecollide(self, blob_group, False) or pygame.sprite.spritecollide(self, ice_group,
+            if pygame.sprite.spritecollide(self, old_global.blob_group, False) or pygame.sprite.spritecollide(self, old_global.ice_group,
                                                                                                    False):
                 self.lives -= 1
                 if self.lives == 1:
@@ -156,13 +88,13 @@ class Player():
                 elif self.lives <= 0:
                     game_over = -1
                 else:
-                    self.reset(100, screen_height - 130)
+                    self.reset(100, old_global.screen_height - 130)
                     self.make_invulnerable()
 
         if game_over == 0:
             key = pygame.key.get_pressed()
             if key[pygame.K_SPACE] and self.jumped == False and self.in_air == False:
-                jump_sound.play()
+                old_global.jump_sound.play()
                 self.vel_y = -15
                 self.jumped = True
             if key[pygame.K_SPACE] == False:
@@ -207,14 +139,14 @@ class Player():
                         dy = tile[1].top - self.rect.bottom
                         self.vel_y = 0
                         self.in_air = False
-            if pygame.sprite.spritecollide(self, blob_group, False):
+            if pygame.sprite.spritecollide(self, old_global.blob_group, False):
                 game_over = -1
-            if pygame.sprite.spritecollide(self, ice_group, False):
+            if pygame.sprite.spritecollide(self, old_global.ice_group, False):
                 game_over = -1
-            if pygame.sprite.spritecollide(self, exit_group, False):
+            if pygame.sprite.spritecollide(self, old_global.exit_group, False):
                 game_over = 1
 
-            for platform in platform_group:
+            for platform in old_global.platform_group:
                 if platform.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                     dx = 0
                 if platform.rect.colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
@@ -236,7 +168,7 @@ class Player():
             if self.death_index >= len(self.death_images):
                 self.death_index = len(self.death_images) - 1
 
-        screen.blit(self.image, self.rect)
+        old_global.screen.blit(self.image, self.rect)
         return game_over
 
     def draw_lives(self, screen):
@@ -288,6 +220,125 @@ class Player():
         self.invulnerable = False
         self.invulnerable_timer = 0
 
+class Old_Global:
+    def __init__(self):
+        self.conn = sqlite3.connect('scores.db')
+        self.c = self.conn.cursor()
+        self.c.execute('''CREATE TABLE IF NOT EXISTS scores (score INTEGER)''')
+        self.conn.commit()
+
+        pygame.mixer.pre_init(44100, -16, 2, 512)
+        pygame.init()
+        mixer.init()
+        self.clock = pygame.time.Clock()
+        self.fps = 60
+        self.screen_width = 1000
+        self.screen_height = 1000
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        pygame.display.set_caption('Platformer')
+        self.tile_size = 50
+        self.game_over = 0
+        self.main_menu = True
+        self.level = 1
+        self.max_levels = 6
+        self.score = 0
+        self.pause = False
+
+        self.font = pygame.font.SysFont(None, 70)
+        self.font_score = pygame.font.SysFont(None, 36)
+        self.red = (255, 0, 0)
+        self.white = (255, 255, 255)
+
+        self.menu_music_playing = False
+        self.game_over_music_played = False
+        self.bg_img = pygame.image.load('img/bg.png')
+        self.start_menu_img = pygame.image.load('img/start_menu.png')
+        self.exit_menu_img = pygame.image.load('img/exit_menu.png')
+        self.score_present = None
+        self.present_sound = pygame.mixer.Sound('sound/present.mp3')
+        self.present_sound.set_volume(0.5)
+        self.jump_sound = pygame.mixer.Sound('sound/jump.mp3')
+        self.jump_sound.set_volume(0.5)
+        self.menu_sound = pygame.mixer.Sound('sound/HappyNewYear.mp3')
+        self.menu_sound.set_volume(0.1)
+        self.game_over_sound = pygame.mixer.Sound('sound/game_over.wav')
+        self.game_over_sound.set_volume(0.3)
+        self.level_sound = pygame.mixer.Sound('sound/level_up.mp3')
+        self.level_sound.set_volume(0.1)
+        self.y_offset = 50
+        self.button_size = (200, 200)
+        self.restart_img = pygame.image.load('img/restart.png')
+        self.present_group = pygame.sprite.Group()
+        self.exit_group = pygame.sprite.Group()
+        self.ice_group = pygame.sprite.Group()
+        self.blob_group = pygame.sprite.Group()
+        self.platform_group = pygame.sprite.Group()
+        self.player = Player(100, self.screen_height - 130)
+        self.restart_img = pygame.transform.scale(self.restart_img, self.button_size)
+        self.button_x = self.screen_width // 2 - self.button_size[0] // 2
+        self.button_y = self.screen_height // 2 - self.button_size[1] // 2 - self.y_offset
+        self.restart_button = Button(self.button_x, self.button_y, self.restart_img)
+
+        self.start_menu_img_scaled = pygame.transform.scale(self.start_menu_img,
+                                                            (self.start_menu_img.get_width() // 2,
+                                                             self.start_menu_img.get_height() // 2))
+        self.exit_menu_img_scaled = pygame.transform.scale(self.exit_menu_img,
+                                                           (self.exit_menu_img.get_width() // 2,
+                                                            self.exit_menu_img.get_height() // 2))
+
+        self.start_menu_button_y = self.screen_height // 2 - 200
+        self.exit_menu_button_y = self.screen_height // 2 + 50
+
+        self.start_menu_button = Button(self.screen_width // 2 - self.start_menu_img_scaled.get_width() // 2,
+                                        self.start_menu_button_y,
+                                        self.start_menu_img_scaled)
+        self.exit_menu_button = Button(self.screen_width // 2 - self.exit_menu_img_scaled.get_width() // 2,
+                                       self.exit_menu_button_y,
+                                       self.exit_menu_img_scaled)
+
+        self.pause_img = pygame.image.load('img/pause.png')
+        self.pause_img_small = pygame.transform.scale(self.pause_img, (100, 100))
+        self.continue_img = pygame.image.load('img/pause.png')
+        self.exit_img = pygame.image.load('img/escape.png')
+
+        self.pause_button = Button(880, 0, self.pause_img_small)
+        self.continue_button = Button(self.screen_width // 2 - 150, self.screen_height // 2 - 450, self.continue_img)
+        self.exit_button = Button(self.screen_width // 2 - 180, self.screen_height // 2 + 100, self.exit_img)
+
+        self.exit_game_over_img = pygame.transform.scale(self.exit_img, (250, 250))
+        self.exit_game_over_button = Button(self.screen_width // 2 - 130, self.screen_height // 2 + 120,
+                                            self.exit_game_over_img)
+
+    def draw_text(self, text, font, text_color, x, y):
+        img = font.render(text, True, text_color)
+        self.screen.blit(img, (x, y))
+
+    def reset_level(self, level):
+        old_global.player.reset(100, self.screen_height - 130)
+        old_global.platform_group.empty()
+        old_global.present_group.empty()
+        old_global.blob_group.empty()
+        old_global.ice_group.empty()
+        old_global.exit_group.empty()
+        if 'score_present' in globals():
+            old_global.present_group.remove(old_global.score_present)
+        self.score_present = Present((self.tile_size // 2) + 110, (self.tile_size // 2) + 35)
+        old_global.present_group.add(self.score_present)
+
+        if path.exists(f'level{level}'):
+            pickle_in = open(f'level{level}', 'rb')
+            world_data = pickle.load(pickle_in)
+        world = World(world_data)
+        return world
+
+game_over = 0
+main_menu = True
+level = 1
+max_levels = 6
+score = 0
+old_global = Old_Global()
+
+
 class World():
     def __init__(self, data):
         self.data = data
@@ -306,72 +357,72 @@ class World():
             col_count = 0
             for tile in row:
                 if tile == 1:
-                    img = pygame.transform.scale(self.land_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.land_img, (old_global.tile_size, old_global.tile_size))
                     img_rect = img.get_rect()
-                    img_rect.x = col_count * tile_size
-                    img_rect.y = row_count * tile_size
+                    img_rect.x = col_count * old_global.tile_size
+                    img_rect.y = row_count * old_global.tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
                 elif tile == 2:
-                    img = pygame.transform.scale(self.snowland_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.snowland_img, (old_global.tile_size, old_global.tile_size))
                     img_rect = img.get_rect()
-                    img_rect.x = col_count * tile_size
-                    img_rect.y = row_count * tile_size
+                    img_rect.x = col_count * old_global.tile_size
+                    img_rect.y = row_count * old_global.tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
                 elif tile == 3:
-                    blob = Enemy(col_count * tile_size, row_count * tile_size + 15)
-                    blob_group.add(blob)
+                    blob = Enemy(col_count * old_global.tile_size, row_count * old_global.tile_size + 15)
+                    old_global.blob_group.add(blob)
                 elif tile == 4:
-                    platform = Platform(col_count * tile_size, row_count * tile_size, 1, 0)
-                    platform_group.add(platform)
+                    platform = Platform(col_count * old_global.tile_size, row_count * old_global.tile_size, 1, 0)
+                    old_global.platform_group.add(platform)
                 elif tile == 5:
-                    platform = Platform(col_count * tile_size, row_count * tile_size, 0, 1)
-                    platform_group.add(platform)
+                    platform = Platform(col_count * old_global.tile_size, row_count * old_global.tile_size, 0, 1)
+                    old_global.platform_group.add(platform)
                 elif tile == 6:
-                    ice = Ice(col_count * tile_size, row_count * tile_size + (tile_size // 2))
-                    ice_group.add(ice)
+                    ice = Ice(col_count * old_global.tile_size, row_count * old_global.tile_size + (old_global.tile_size // 2))
+                    old_global.ice_group.add(ice)
                 elif tile == 7:
-                    present = Present(col_count * tile_size + (tile_size // 2),
-                                      row_count * tile_size + (tile_size // 2))
-                    present_group.add(present)
+                    present = Present(col_count * old_global.tile_size + (old_global.tile_size // 2),
+                                      row_count * old_global.tile_size + (old_global.tile_size // 2))
+                    old_global.present_group.add(present)
                 elif tile == 12:
-                    img = pygame.transform.scale(self.lf_snowland_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.lf_snowland_img, (old_global.tile_size, old_global.tile_size))
                     img_rect = img.get_rect()
-                    img_rect.x = col_count * tile_size
-                    img_rect.y = row_count * tile_size
+                    img_rect.x = col_count * old_global.tile_size
+                    img_rect.y = row_count * old_global.tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
                 elif tile == 9:
-                    img = pygame.transform.scale(self.rg_snowland_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.rg_snowland_img, (old_global.tile_size, old_global.tile_size))
                     img_rect = img.get_rect()
-                    img_rect.x = col_count * tile_size
-                    img_rect.y = row_count * tile_size
+                    img_rect.x = col_count * old_global.tile_size
+                    img_rect.y = row_count * old_global.tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
                 elif tile == 10:
-                    img = pygame.transform.scale(self.lf_obrez_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.lf_obrez_img, (old_global.tile_size, old_global.tile_size))
                     img_rect = img.get_rect()
-                    img_rect.x = col_count * tile_size
-                    img_rect.y = row_count * tile_size
+                    img_rect.x = col_count * old_global.tile_size
+                    img_rect.y = row_count * old_global.tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
                 elif tile == 11:
-                    img = pygame.transform.scale(self.rg_obrez_img, (tile_size, tile_size))
+                    img = pygame.transform.scale(self.rg_obrez_img, (old_global.tile_size, old_global.tile_size))
                     img_rect = img.get_rect()
-                    img_rect.x = col_count * tile_size
-                    img_rect.y = row_count * tile_size
+                    img_rect.x = col_count * old_global.tile_size
+                    img_rect.y = row_count * old_global.tile_size
                     tile = (img, img_rect)
                     self.tile_list.append(tile)
                 elif tile == 8:
-                    exit = Win(col_count * tile_size, row_count * tile_size)
-                    exit_group.add(exit)
+                    exit = Win(col_count * old_global.tile_size, row_count * old_global.tile_size)
+                    old_global.exit_group.add(exit)
                 col_count += 1
             row_count += 1
 
     def draw(self):
         for tile in self.tile_list:
-            screen.blit(tile[0], tile[1])
+            old_global.screen.blit(tile[0], tile[1])
 
 
 def save_score(score):
@@ -396,10 +447,10 @@ def draw_top_scores(current_score=None):
     y = 100
     for index, score in enumerate(top_scores):
         title = f'High Score {index + 1}'
-        draw_text(f'{title}: {score[0]}', font_score, white, screen_width // 2 - 50, y)
+        old_global.draw_text(f'{title}: {score[0]}', old_global.font_score, old_global.white, old_global.screen_width // 2 - 50, y)
         y += 40
     if current_score is not None:
-        draw_text(f'Your Score: {current_score}', font_score, white, screen_width // 2 - 50, y)
+        old_global.draw_text(f'Your Score: {current_score}', old_global.font_score, old_global.white, old_global.screen_width // 2 - 50, y)
         y += 40
 
 
@@ -413,15 +464,15 @@ class Snowflake():
 
     def update(self):
         self.y += self.speed
-        if self.y > screen_height:
+        if self.y > old_global.screen_height:
             self.y = -50
-            self.x = random.randint(0, screen_width)
+            self.x = random.randint(0, old_global.screen_width)
 
     def draw(self):
-        pygame.draw.circle(screen, (255, 255, 255), (self.x, self.y), self.size)
+        pygame.draw.circle(old_global.screen, (255, 255, 255), (self.x, self.y), self.size)
 
 
-snowflakes = [Snowflake(random.randint(0, screen_width), random.randint(0, screen_height), random.randint(2, 5),
+snowflakes = [Snowflake(random.randint(0, old_global.screen_width), random.randint(0, old_global.screen_height), random.randint(2, 5),
                         random.randint(1, 4)) for _ in range(100)]
 
 
@@ -448,7 +499,7 @@ class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y, move_x, move_y):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.image.load('img/platform.png')
-        self.image = pygame.transform.scale(self.image, (tile_size, tile_size // 2))
+        self.image = pygame.transform.scale(self.image, (old_global.tile_size, old_global.tile_size // 2))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
@@ -470,7 +521,7 @@ class Win(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
         img = pygame.image.load('img/portal.png')
-        self.image = pygame.transform.scale(img, (tile_size, int(tile_size * 1.5)))
+        self.image = pygame.transform.scale(img, (old_global.tile_size, int(old_global.tile_size * 1.5)))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
@@ -480,7 +531,7 @@ class Ice(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
         img = pygame.image.load('img/ice.png')
-        self.image = pygame.transform.scale(img, (tile_size, tile_size // 2))
+        self.image = pygame.transform.scale(img, (old_global.tile_size, old_global.tile_size // 2))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
@@ -490,146 +541,111 @@ class Present(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
         img = pygame.image.load('img/present.png')
-        self.image = pygame.transform.scale(img, (tile_size // 2, tile_size // 2))
+        self.image = pygame.transform.scale(img, (old_global.tile_size // 2, old_global.tile_size // 2))
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
 
 
-y_offset = 50
-button_size = (200, 200)
-restart_img = pygame.image.load('img/restart.png')
-restart_img = pygame.transform.scale(restart_img, button_size)
-button_x = screen_width // 2 - button_size[0] // 2
-button_y = screen_height // 2 - button_size[1] // 2 - y_offset
-restart_button = Button(button_x, button_y, restart_img)
 
-start_menu_img_scaled = pygame.transform.scale(start_menu_img,
-                                               (start_menu_img.get_width() // 2, start_menu_img.get_height() // 2))
-exit_menu_img_scaled = pygame.transform.scale(exit_menu_img,
-                                              (exit_menu_img.get_width() // 2, exit_menu_img.get_height() // 2))
-
-start_menu_button_y = screen_height // 2 - 200
-exit_menu_button_y = screen_height // 2 + 50
-
-start_menu_button = Button(screen_width // 2 - start_menu_img_scaled.get_width() // 2, start_menu_button_y,
-                           start_menu_img_scaled)
-exit_menu_button = Button(screen_width // 2 - exit_menu_img_scaled.get_width() // 2, exit_menu_button_y,
-                          exit_menu_img_scaled)
-
-pause_img = pygame.image.load('img/pause.png')
-pause_img_small = pygame.transform.scale(pause_img, (100, 100))
-continue_img = pygame.image.load('img/pause.png')
-exit_img = pygame.image.load('img/escape.png')
-
-pause_button = Button(880, 0, pause_img_small)
-continue_button = Button(screen_width // 2 - 150, screen_height // 2 - 450, continue_img)
-exit_button = Button(screen_width // 2 - 180, screen_height // 2 + 100, exit_img)
-
-exit_game_over_img = pygame.transform.scale(exit_img, (250, 250))
-exit_game_over_button = Button(screen_width // 2 - 130, screen_height // 2 + 120, exit_game_over_img)
-
-player = Player(100, screen_height - 130)
-blob_group = pygame.sprite.Group()
-ice_group = pygame.sprite.Group()
-exit_group = pygame.sprite.Group()
-present_group = pygame.sprite.Group()
-platform_group = pygame.sprite.Group()
-score_present = Present((tile_size // 2) + 110, (tile_size // 2) + 35)
-present_group.add(score_present)
-if path.exists(f'level{level}'):
-    pickle_in = open(f'level{level}', 'rb')
+if path.exists(f'level{old_global.level}'):
+    pickle_in = open(f'level{old_global.level}', 'rb')
 world_data = pickle.load(pickle_in)
 world = World(world_data)
-
+menu_music_playing = False
+main_menu = True
 run = True
+pause = False
+restart_button = Button(old_global.button_x, old_global.button_y, old_global.restart_img)
+
 while run:
-    clock.tick(fps)
-    screen.blit(bg_img, (0, 0))
+    old_global.clock.tick(old_global.fps)
+    old_global.screen.blit(old_global.bg_img, (0, 0))
 
     if main_menu:
         for snowflake in snowflakes:
             snowflake.update()
-        screen.blit(bg_img, (0, 0))
+        old_global.screen.blit(old_global.bg_img, (0, 0))
         for snowflake in snowflakes:
             snowflake.draw()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
         if not menu_music_playing:
-            menu_sound.play(-1)
+            old_global.menu_sound.play(-1)
             menu_music_playing = True
-        if exit_menu_button.draw():
+        if old_global.exit_menu_button.draw():
             run = False
-        if start_menu_button.draw():
+        if old_global.start_menu_button.draw():
             main_menu = False
-            menu_sound.stop()
+            old_global.menu_sound.stop()
             menu_music_playing = False
     else:
         if not pause:
             world.draw()
             if game_over == 0:
-                present_group.draw(screen)
-                blob_group.update()
-                platform_group.update()
-                if pygame.sprite.spritecollide(player, present_group, True):
-                    score += 1
-                    present_sound.play()
-                draw_text('Score: ' + str(score), font_score, white, tile_size - 40, 50)
-            platform_group.draw(screen)
-            blob_group.draw(screen)
-            ice_group.draw(screen)
-            exit_group.draw(screen)
-            game_over = player.update(game_over)
+                old_global.present_group.draw(old_global.screen)
+                old_global.blob_group.update()
+                old_global.platform_group.update()
+                if pygame.sprite.spritecollide(old_global.player, old_global.present_group, True):
+                    old_global.score += 1
+                    old_global.present_sound.play()
+                old_global.draw_text('Score: ' + str(old_global.score), old_global.font_score, old_global.white, old_global.tile_size - 40, 50)
+            old_global.platform_group.draw(old_global.screen)
+            old_global.blob_group.draw(old_global.screen)
+            old_global.ice_group.draw(old_global.screen)
+            old_global.exit_group.draw(old_global.screen)
+            game_over = old_global.player.update(game_over)
             for snowflake in snowflakes:
                 snowflake.update()
                 snowflake.draw()
 
             if game_over == -1:
-                draw_top_scores(current_score=score)
-                if not game_over_music_played:
-                    game_over_sound.play()
-                    game_over_music_played = True
-                draw_text('GAME OVER', font, red, (screen_width // 2) - 150, (screen_height // 2) - 200)
+                draw_top_scores(current_score=old_global.score)
+                if not old_global.game_over_music_played:
+                    old_global.game_over_sound.play()
+                    old_global.game_over_music_played = True
+                old_global.draw_text('GAME OVER', old_global.font, old_global.red, (old_global.screen_width // 2) - 150, (old_global.screen_height // 2) - 200)
                 if restart_button.draw():
-                    save_score(score)
-                    game_over_music_played = False
-                    player.full_reset(100, screen_height - 130)
+                    save_score(old_global.score)
+                    old_global.game_over_music_played = False
+                    old_global.player.full_reset(100, old_global.screen_height - 130)
                     level = 1
                     world_data = []
-                    world = reset_level(level)
+                    world = old_global.reset_level(level)
                     game_over = 0
                     score = 0
                     pause = False
-                if exit_game_over_button.draw():
+
+                if old_global.exit_game_over_button.draw():
                     save_score(score)
                     run = False
-            player.draw_lives(screen)
+            old_global.player.draw_lives(old_global.screen)
             if game_over == 1:
-                level_sound.play()
+                old_global.level_sound.play()
                 level += 1
-                if level <= max_levels:
+                if level <= old_global.max_levels:
                     world_data = []
-                    world = reset_level(level)
+                    world = old_global.reset_level(level)
                     game_over = 0
                 else:
-                    draw_text('YOU WIN!!!', font, red, (screen_width // 2) - 140, (screen_height // 2) - 200)
+                    old_global.draw_text('YOU WIN!!!', old_global.font, old_global.red, (old_global.screen_width // 2) - 140, (old_global.screen_height // 2) - 200)
                     if restart_button.draw():
                         save_score(score)
                         game_over_music_played = False
-                        player.full_reset(100, screen_height - 130)
+                        old_global.player.full_reset(100, old_global.screen_height - 130)
                         level = 1
                         world_data = []
-                        world = reset_level(level)
+                        world = old_global.reset_level(level)
                         game_over = 0
                         score = 0
                         pause = False
             if not game_over and not main_menu:
-                if pause_button.draw():
+                if old_global.pause_button.draw():
                     pause = True
         else:
-            if continue_button.draw():
+            if old_global.continue_button.draw():
                 pause = False
-            if exit_button.draw():
+            if old_global.exit_button.draw():
                 run = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
