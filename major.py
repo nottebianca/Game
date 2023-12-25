@@ -662,6 +662,7 @@ def main(game):
                 run = False
         pygame.display.update()
     pygame.quit()
+
 if __name__ == "__main__":
     game = GameManager()
     main(game)
