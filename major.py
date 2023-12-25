@@ -344,7 +344,7 @@ class Initialization:
         world = World(world_data)
         return world
 
-game = GameManager()
+
 initialization = Initialization()
 
 
@@ -555,7 +555,7 @@ class Present(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
 
-def main():
+def main(game):
     if path.exists(f'level{initialization.level}'):
         pickle_in = open(f'level{initialization.level}', 'rb')
     world_data = pickle.load(pickle_in)
@@ -663,4 +663,5 @@ def main():
         pygame.display.update()
     pygame.quit()
 if __name__ == "__main__":
-    main()
+    game = GameManager()
+    main(game)
